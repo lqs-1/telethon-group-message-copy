@@ -1,11 +1,10 @@
 import redis
 from telethon import TelegramClient, events
 
-# Remember to use your own values from my.telegram.org!
-api_id = 29592051
-api_hash = '55ab79ddebd4016898d3bad24b904d33'
-# client = TelegramClient('lee7s', api_id, api_hash, proxy=("socks5", '127.0.0.1', 7890))
-client = TelegramClient('lee7s', api_id, api_hash)
+from app import api_id, api_hash
+
+client = TelegramClient('lee7s', api_id, api_hash, proxy=("socks5", '127.0.0.1', 7890))
+# client = TelegramClient('lee7s', api_id, api_hash)
 #此处的some_name是一个随便起的名称，第一次运行会让你输入手机号和验证码，之后会生成一个some_name.session的文件，再次运行的时候就不需要反复输入手机号验证码了
 
 redis_client = redis.StrictRedis(host='localhost', port=6379, db=0)
@@ -52,7 +51,7 @@ async def main():
     # await client.send_file('me', r'C:\Users\grade\Downloads\google5.png')
 
     min_id = redis_client.get('min_id') # 617070
-    messages = client.iter_messages(-1001375475051, reverse=True, min_id=int(min_id))
+    messages = client.iter_messages(-1001939724175, reverse=True, min_id=int(min_id))
 
     # 打印历史消息
     async for message in messages:
@@ -71,7 +70,7 @@ async def main():
 @client.on(events.NewMessage)
 async def my_event_handler(event):
     try:
-        if event.is_channel and event.chat_id == -1001375475051:
+        if event.is_channel and event.chat_id == -1001939724175:
             # print()
             await main()
 
