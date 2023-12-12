@@ -1,7 +1,8 @@
 import redis
 from telethon import TelegramClient, events
+import time
 
-from app import api_id, api_hash
+from app.config import api_id, api_hash
 
 client = TelegramClient('lee7s', api_id, api_hash, proxy=("socks5", '127.0.0.1', 7890))
 # client = TelegramClient('lee7s', api_id, api_hash)
@@ -9,7 +10,7 @@ client = TelegramClient('lee7s', api_id, api_hash, proxy=("socks5", '127.0.0.1',
 
 redis_client = redis.StrictRedis(host='localhost', port=6379, db=0)
 
-async def main():
+# async def main():
     # 获取个人信息
     # me = await client.get_me()
 
@@ -50,16 +51,38 @@ async def main():
     # 发送文件文档等
     # await client.send_file('me', r'C:\Users\grade\Downloads\google5.png')
 
-    min_id = redis_client.get('min_id') # 617070
-    messages = client.iter_messages(-1001939724175, reverse=True, min_id=int(min_id))
+async def copy_group_and_channel_message(resource_id, target_id, redis_index_key_word: str, reverse: bool):
+    """
+    :param resource_id: 要复制的群或者频道id
+    :param target_id: 目标群或者频道id
+    :param redis_index_key_word: redis中存放的消息起始id的key名字
+    :param reverse: 是否倒序 true为从0来时 false为从最新消息开始
+    :return:
+    """
 
+
+    min_id = redis_client.get(redis_index_key_word)  # 91 1108
+    # messages = client.iter_messages(resource_id, reverse=reverse, min_id=int(min_id))
+    messages = client.iter_messages(resource_id, reverse=reverse, max_id=int(min_id))
+
+    flag = 0
     # 打印历史消息
     async for message in messages:
-        redis_client.set('min_id', message.id)
+        redis_client.set(redis_index_key_word, message.id)
         print(message.id, message.message)
 
+        if flag == 10:
+            flag = 0
+            time.sleep(60*60*12)
+
+        message_text = message.message
+        if "http" in message_text or "https" in message_text or "@" in message_text:
+            continue
+
         if message.message is not None:
-            await client.send_message(-1001956313217, message)
+            flag += 1
+
+            await client.send_message(target_id, message)
 
         # 可以下载媒体内容
         # The method will return the path where the file was saved.
@@ -67,17 +90,97 @@ async def main():
         #     path = await message.download_media() # path是文件名
         #     print('File saved to', path)  # printed after download is done
 
+
+async def order_copy_group_and_channel_message(resource_id, target_id, redis_index_key_word: str, reverse: bool, count: int):
+    """
+    :param resource_id: 要复制的群或者频道id
+    :param target_id: 目标群或者频道id
+    :param redis_index_key_word: redis中存放的消息起始id的key名字
+    :param reverse: 是否倒序 true为从0来时 false为从最新消息开始
+    :param count: 发送多少个
+    :return:
+    """
+
+
+    min_id = redis_client.get(redis_index_key_word)  # 91 1108
+    # messages = client.iter_messages(resource_id, reverse=reverse, min_id=int(min_id))
+    messages = client.iter_messages(resource_id, reverse=reverse, max_id=int(min_id))
+
+    flag = count
+    # 打印历史消息
+    async for message in messages:
+        if flag == 0:
+            break
+        redis_client.set(redis_index_key_word, message.id)
+
+        message_text = message.message
+        if "http" in message_text or "https" in message_text or "@" in message_text:
+            continue
+
+        if message.message is not None:
+            flag -= 1
+            print(message.id, message.message, "已发送")
+            await client.send_message(target_id, message)
+
+        # 可以下载媒体内容
+        # The method will return the path where the file was saved.
+        # if message.photo:
+        #     path = await message.download_media() # path是文件名
+        #     print('File saved to', path)  # printed after download is done
+
+async def send_private_message(group_link: str, message_text: str):
+    """
+    指定公开群聊 给里面的人发私信 需要账号进入
+    :param group_link: 群的链接
+    :param message_text: 私聊文本
+    :return:
+    """
+
+    # target_user = await client.get_entity("lee7s_7s")
+    # await client.send_message(target_user, "message_text")
+    group_entity = await client.get_entity(group_link)
+    chat_members = await client.get_participants(group_entity)
+
+    # 遍历成员列表并发送私信
+    for member in chat_members:
+        if member.bot:
+            time.sleep(20)
+            continue  # 跳过机器人成员
+        username = member.username
+        if not username:
+            time.sleep(70)
+            continue  # 跳过没有用户名的成员
+        # 获取目标用户的信息
+        try:
+            target_user = await client.get_entity(username)
+            print(f"正在给用户  {username}  发送邀请")
+            time.sleep(128)
+            await client.send_message(target_user, message_text)
+        except ValueError:
+            print("找不到目标用户")
+            time.sleep(34)
+            continue
+
+
 @client.on(events.NewMessage)
 async def my_event_handler(event):
+
+
     try:
-        if event.is_channel and event.chat_id == -1001939724175:
-            # print()
-            await main()
+        # if event.is_channel and event.chat_id == -1001436263897:
+        #     # print()
+        #     await copy_group_and_channel_message(-1001436263897, -1002130678124, "min_id")
+
+        if event.original_update.user_id in [5060527090, 6967203577]:
+            message = event.original_update.message.split('_')
+            if len(message) == 2:
+                await order_copy_group_and_channel_message(-1001436263897, -1002130678124, "min_id", False, int(message[1]))
 
     except Exception as e:
         pass
 
 with client:
-    # client.loop.run_until_complete(main())
+    # client.loop.run_until_complete(copy_group_and_channel_message(-1001436263897, -1002130678124, "min_id", False))
+    # client.loop.run_until_complete(send_private_message("https://t.me/xylxf777", "https://t.me/av_share_channel 欢迎来这个频道看骚逼!每日更新"))
     client.run_until_disconnected()
 
