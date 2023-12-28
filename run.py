@@ -1,13 +1,16 @@
+import asyncio
+
 import redis
 from telethon import TelegramClient, events
 import time
 
 from app.config import api_id, api_hash
 
-client = TelegramClient('lee7s', api_id, api_hash, proxy=("socks5", '127.0.0.1', 7890))
-# client = TelegramClient('lee7s', api_id, api_hash)
+# client = TelegramClient('lee7s', api_id, api_hash, proxy=("socks5", '127.0.0.1', 7890))
+client = TelegramClient('lee7s', api_id, api_hash)
 #此处的some_name是一个随便起的名称，第一次运行会让你输入手机号和验证码，之后会生成一个some_name.session的文件，再次运行的时候就不需要反复输入手机号验证码了
 
+# redis_client = redis.StrictRedis(host='75.127.13.112', port=6379, db=0)
 redis_client = redis.StrictRedis(host='localhost', port=6379, db=0)
 
 # async def main():
@@ -51,50 +54,47 @@ redis_client = redis.StrictRedis(host='localhost', port=6379, db=0)
     # 发送文件文档等
     # await client.send_file('me', r'C:\Users\grade\Downloads\google5.png')
 
-async def copy_group_and_channel_message(resource_id, target_id, redis_index_key_word: str, reverse: bool):
+async def  do_copy_group_and_channel_message_to_target(resource_id, target_id, user_id, message_id: str):
     """
+    复制指定的消息到目标位置
     :param resource_id: 要复制的群或者频道id
     :param target_id: 目标群或者频道id
-    :param redis_index_key_word: redis中存放的消息起始id的key名字
-    :param reverse: 是否倒序 true为从0来时 false为从最新消息开始
+    :param user_id: 管理员id
+    :param message_id: 消息id
     :return:
     """
 
-
-    min_id = redis_client.get(redis_index_key_word)  # 91 1108
     # messages = client.iter_messages(resource_id, reverse=reverse, min_id=int(min_id))
-    messages = client.iter_messages(resource_id, reverse=reverse, max_id=int(min_id))
+    messages = await client.get_messages(resource_id, ids=int(message_id))
 
-    flag = 0
-    # 打印历史消息
-    async for message in messages:
-        redis_client.set(redis_index_key_word, message.id)
-        print(message.id, message.message)
+    # print(messages)
+    # message = messages[0]
+    print(messages.id, messages.message, "筛选通过 已发送到目的地")
+    messages.text = f"`{messages.text}`" + "\n\n" + "🎊" * 10 + "\n[💰拉新赚佣金](https://t.me/shnajkzl)\n[🛒点我去商店](https://shop.somg.xyz)"
+    await client.send_message(target_id, messages)
+    await client.send_message(user_id, f"{messages.id}, {messages.text}" + "\n筛选通过 已发送到目的地")
+    # await client.send_message(user_id, messages, parse_mode="md")
+    # message_text = message.message
+    # if "http" in message_text or "https" in message_text or "@" in message_text:
+    #     continue
+    #
+    # if message.message is not None:
+    #     flag += 1
+    #
+    #     await client.send_message(target_id, message)
 
-        if flag == 10:
-            flag = 0
-            time.sleep(60*60*12)
-
-        message_text = message.message
-        if "http" in message_text or "https" in message_text or "@" in message_text:
-            continue
-
-        if message.message is not None:
-            flag += 1
-
-            await client.send_message(target_id, message)
-
-        # 可以下载媒体内容
-        # The method will return the path where the file was saved.
-        # if message.photo:
-        #     path = await message.download_media() # path是文件名
-        #     print('File saved to', path)  # printed after download is done
+    # 可以下载媒体内容
+    # The method will return the path where the file was saved.
+    # if message.photo:
+    #     path = await message.download_media() # path是文件名
+    #     print('File saved to', path)  # printed after download is done
 
 
-async def order_copy_group_and_channel_message(resource_id, target_id, redis_index_key_word: str, reverse: bool, count: int):
+async def do_copy_group_and_channel_message_to_admin(resource_id, target_id, redis_index_key_word: str, reverse: bool, count: int):
     """
+    把指定条数的消息发送给管理员 管理员好筛选
     :param resource_id: 要复制的群或者频道id
-    :param target_id: 目标群或者频道id
+    :param target_id: 目标id 管理员id
     :param redis_index_key_word: redis中存放的消息起始id的key名字
     :param reverse: 是否倒序 true为从0来时 false为从最新消息开始
     :param count: 发送多少个
@@ -102,9 +102,14 @@ async def order_copy_group_and_channel_message(resource_id, target_id, redis_ind
     """
 
 
-    min_id = redis_client.get(redis_index_key_word)  # 91 1108
-    # messages = client.iter_messages(resource_id, reverse=reverse, min_id=int(min_id))
-    messages = client.iter_messages(resource_id, reverse=reverse, max_id=int(min_id))
+    try:
+        min_id = redis_client.get(redis_index_key_word)  # 91 1108
+        # messages = client.iter_messages(resource_id, reverse=reverse, min_id=int(min_id))
+        messages = client.iter_messages(resource_id, reverse=reverse, max_id=int(min_id))
+    except Exception as e:
+        redis_client.set(redis_index_key_word, await latest_message_id(resource_id))
+        messages = client.iter_messages(resource_id, reverse=reverse, max_id=await latest_message_id(resource_id))
+
 
     flag = count
     # 打印历史消息
@@ -114,13 +119,52 @@ async def order_copy_group_and_channel_message(resource_id, target_id, redis_ind
         redis_client.set(redis_index_key_word, message.id)
 
         message_text = message.message
+
+        message.text = ("title: " + message_text + "\n" + "msgId: " + str(message.id) + "\n" + "resource: " + "https://t.me/" + message.chat.username + f"/{message.id}" + "\n" + "put: " + "`put_" + str(message.id) + "`")
+        # message.text = "[baidu](https://www.baidu.com)"
         if "http" in message_text or "https" in message_text or "@" in message_text:
             continue
 
-        if message.message is not None:
-            flag -= 1
-            print(message.id, message.message, "已发送")
-            await client.send_message(target_id, message)
+        # if message.message is not None:
+        flag -= 1
+        print(message.id, message.message, "已发送给管理员筛选")
+        await client.send_message(target_id, message, parse_mode='md')
+
+        # 可以下载媒体内容
+        # The method will return the path where the file was saved.
+        # if message.photo:
+        #     path = await message.download_media() # path是文件名
+        #     print('File saved to', path)  # printed after download is done
+
+async def do_copy_group_and_channel_latest_message_to_admin(resource_id, target_id, reverse: bool, count: int):
+    """
+    发送指定条数的最新消息给管理员
+    :param resource_id: 要复制的群或者频道id
+    :param target_id: 管理员id
+    :param reverse: 是否倒序 true为从0来时 false为从最新消息开始
+    :param count: 发送多少个
+    :return:
+    """
+
+    messages = client.iter_messages(resource_id, reverse=reverse, max_id=await latest_message_id(resource_id))
+
+    flag = count
+    # 打印历史消息
+    async for message in messages:
+        if flag == 0:
+            break
+
+        message_text = message.message
+
+        message.text = ("title: " + message_text + "\n" + "msgId: " + str(message.id) + "\n" + "resource: " + "https://t.me/" + message.chat.username + f"/{message.id}" + "\n" + "put: " + "`put_" + str(message.id) + "`")
+        # message.text = "[baidu](https://www.baidu.com)"
+        if "http" in message_text or "https" in message_text or "@" in message_text:
+            continue
+
+        # if message.message is not None:
+        flag -= 1
+        print(message.id, message.message, "已发送给管理员筛选")
+        await client.send_message(target_id, message, parse_mode='md')
 
         # 可以下载媒体内容
         # The method will return the path where the file was saved.
@@ -162,6 +206,18 @@ async def send_private_message(group_link: str, message_text: str):
             continue
 
 
+
+async def latest_message_id(session_id):
+    '''
+    获取会话中最新的消息id
+    :param session_id: 会话id
+    :return:
+    '''
+    messages = client.iter_messages(session_id)
+    async for message in messages:
+        return message.id
+
+
 @client.on(events.NewMessage)
 async def my_event_handler(event):
 
@@ -171,16 +227,39 @@ async def my_event_handler(event):
         #     # print()
         #     await copy_group_and_channel_message(-1001436263897, -1002130678124, "min_id")
 
-        if event.original_update.user_id in [5060527090, 6967203577]:
+        if event.original_update.user_id in [5060527090, 6833588245]:
             message = event.original_update.message.split('_')
             if len(message) == 2:
-                await order_copy_group_and_channel_message(-1001436263897, -1002130678124, "min_id", False, int(message[1]))
-
+                action = message[0]
+                if action == 'get':
+                    await do_copy_group_and_channel_message_to_admin(-1001436263897, event.chat_id, "min_id", False, int(message[1]))
+                if action == 'put':
+                    await do_copy_group_and_channel_message_to_target(-1001436263897, -1002130678124, event.chat_id, message[1])
+                    # await do_copy_group_and_channel_message_to_target(-1001436263897, event.chat_id, event.chat_id, message[1])
+                if action == 'ga':  # getAll:ga_10 发送最新的10条消息
+                    await do_copy_group_and_channel_latest_message_to_admin(-1001436263897, event.chat_id, False, int(message[1]))
     except Exception as e:
         pass
+
+async def test():
+
+
+    dialogs = await client.get_dialogs()
+
+    # 创建一个字典来存储每个文件夹的聊天
+    folder_chats = {}
+
+    # 遍历所有对话，并根据文件夹 ID 进行分组
+    for dialog in dialogs:
+        if dialog.is_channel and not dialog.is_group:
+            print(dialog.id, await latest_message_id(dialog.id), dialog.title)
+
 
 with client:
     # client.loop.run_until_complete(copy_group_and_channel_message(-1001436263897, -1002130678124, "min_id", False))
     # client.loop.run_until_complete(send_private_message("https://t.me/xylxf777", "https://t.me/av_share_channel 欢迎来这个频道看骚逼!每日更新"))
+    # client.loop.run_until_complete(test())
     client.run_until_disconnected()
+
+
 
