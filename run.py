@@ -223,7 +223,7 @@ async def my_event_handler(event):
     try:
 
         # 发起获取字典的请求
-        response = requests.get("http://localhost:8888/back/sysDict/requestDictByParent/telegram_copy_dict")
+        response = requests.get("https://nobibibi.top/back/sysDict/requestDictByParent/telegram_copy_dict")
         response_data = response.json().get("parentDictAllSonDict")
 
         # 获取有权执行命令的用户id
