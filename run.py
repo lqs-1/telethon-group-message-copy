@@ -144,7 +144,7 @@ async def do_copy_group_and_channel_latest_message_to_admin(resource_account, ta
     :return:
     """
 
-    messages = client.iter_messages(f"@{resource_account}", reverse=reverse, max_id=await latest_message_id(f"@{resource_account}"))
+    messages = client.iter_messages(f"@{resource_account}", reverse=reverse, max_id=await latest_message_id(resource_account))
 
     flag = count
     # 打印历史消息
