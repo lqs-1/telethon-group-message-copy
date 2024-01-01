@@ -1,5 +1,4 @@
-import asyncio
-
+import requests
 import redis
 from telethon import TelegramClient, events
 import time
@@ -54,7 +53,7 @@ redis_client = redis.StrictRedis(host='localhost', port=6379, db=0)
     # 发送文件文档等
     # await client.send_file('me', r'C:\Users\grade\Downloads\google5.png')
 
-async def  do_copy_group_and_channel_message_to_target(resource_id, target_id, user_id, message_id: str):
+async def  do_copy_group_and_channel_message_to_target(resource_account, target_account, user_id, message_id: str, response_data:list):
     """
     复制指定的消息到目标位置
     :param resource_id: 要复制的群或者频道id
@@ -65,13 +64,13 @@ async def  do_copy_group_and_channel_message_to_target(resource_id, target_id, u
     """
 
     # messages = client.iter_messages(resource_id, reverse=reverse, min_id=int(min_id))
-    messages = await client.get_messages(resource_id, ids=int(message_id))
+    messages = await client.get_messages(f"@{resource_account}", ids=int(message_id))
 
     # print(messages)
     # message = messages[0]
     print(messages.id, messages.message, "筛选通过 已发送到目的地")
-    messages.text = f"`{messages.text}`" + "\n\n" + "🎊" * 10 + "\n[💰拉新赚佣金](https://t.me/shnajkzl)\n[🛒点我去商店](https://shop.somg.xyz)"
-    await client.send_message(target_id, messages)
+    messages.text = f"`{messages.text}`" + "\n\n" + "🎊" * 10 + f"\n[💰拉新赚佣金]({response_data.get('contact')})\n[🛒点我去商店]({response_data.get('account_shop_url')})"
+    await client.send_message(f"@{target_account}", messages)
     await client.send_message(user_id, f"{messages.id}, {messages.text}" + "\n筛选通过 已发送到目的地")
     # await client.send_message(user_id, messages, parse_mode="md")
     # message_text = message.message
@@ -90,7 +89,7 @@ async def  do_copy_group_and_channel_message_to_target(resource_id, target_id, u
     #     print('File saved to', path)  # printed after download is done
 
 
-async def do_copy_group_and_channel_message_to_admin(resource_id, target_id, redis_index_key_word: str, reverse: bool, count: int):
+async def do_copy_group_and_channel_message_to_admin(resource_account, target_id, redis_index_key_word: str, reverse: bool, count: int, response_data: list):
     """
     把指定条数的消息发送给管理员 管理员好筛选
     :param resource_id: 要复制的群或者频道id
@@ -103,12 +102,11 @@ async def do_copy_group_and_channel_message_to_admin(resource_id, target_id, red
 
 
     try:
-        min_id = redis_client.get(redis_index_key_word)  # 91 1108
-        # messages = client.iter_messages(resource_id, reverse=reverse, min_id=int(min_id))
-        messages = client.iter_messages(resource_id, reverse=reverse, max_id=int(min_id))
+        min_id = redis_client.get(f"{resource_account}_{redis_index_key_word}")
+        messages = client.iter_messages(f"@{resource_account}", reverse=reverse, max_id=int(min_id))
     except Exception as e:
-        redis_client.set(redis_index_key_word, await latest_message_id(resource_id))
-        messages = client.iter_messages(resource_id, reverse=reverse, max_id=await latest_message_id(resource_id))
+        redis_client.set(f"{resource_account}_{redis_index_key_word}", await latest_message_id(resource_account))
+        messages = client.iter_messages(f"@{resource_account}", reverse=reverse, max_id=await latest_message_id(resource_account))
 
 
     flag = count
@@ -116,7 +114,7 @@ async def do_copy_group_and_channel_message_to_admin(resource_id, target_id, red
     async for message in messages:
         if flag == 0:
             break
-        redis_client.set(redis_index_key_word, message.id)
+        redis_client.set(f"{resource_account}_{redis_index_key_word}", message.id)
 
         message_text = message.message
 
@@ -136,7 +134,7 @@ async def do_copy_group_and_channel_message_to_admin(resource_id, target_id, red
         #     path = await message.download_media() # path是文件名
         #     print('File saved to', path)  # printed after download is done
 
-async def do_copy_group_and_channel_latest_message_to_admin(resource_id, target_id, reverse: bool, count: int):
+async def do_copy_group_and_channel_latest_message_to_admin(resource_account, target_id, reverse: bool, count: int):
     """
     发送指定条数的最新消息给管理员
     :param resource_id: 要复制的群或者频道id
@@ -146,7 +144,7 @@ async def do_copy_group_and_channel_latest_message_to_admin(resource_id, target_
     :return:
     """
 
-    messages = client.iter_messages(resource_id, reverse=reverse, max_id=await latest_message_id(resource_id))
+    messages = client.iter_messages(f"@{resource_account}", reverse=reverse, max_id=await latest_message_id(f"@{resource_account}"))
 
     flag = count
     # 打印历史消息
@@ -207,13 +205,13 @@ async def send_private_message(group_link: str, message_text: str):
 
 
 
-async def latest_message_id(session_id):
+async def latest_message_id(session_account):
     '''
     获取会话中最新的消息id
     :param session_id: 会话id
     :return:
     '''
-    messages = client.iter_messages(session_id)
+    messages = client.iter_messages(f"@{session_account}")
     async for message in messages:
         return message.id
 
@@ -223,21 +221,39 @@ async def my_event_handler(event):
 
 
     try:
-        # if event.is_channel and event.chat_id == -1001436263897:
-        #     # print()
-        #     await copy_group_and_channel_message(-1001436263897, -1002130678124, "min_id")
 
-        if event.original_update.user_id in [5060527090, 6833588245]:
+        # 发起获取字典的请求
+        response = requests.get("http://localhost:8888/back/sysDict/requestDictByParent/telegram_copy_dict")
+        response_data = response.json().get("parentDictAllSonDict")
+
+        # 获取有权执行命令的用户id
+        order_ids_str_list = response_data.get('order_ids').split(":")
+        order_ids = list()
+        for order_id in order_ids_str_list:
+            order_ids.append(int(order_id))
+
+        # 获取复制源和目标账号
+        resource_account = response_data.get('resource_account')
+        target_account = response_data.get('target_account')
+
+        # 获取redis中存放的消息id的key
+        redis_index_key_word = response_data.get('redis_index_key_word')
+
+        if event.original_update.user_id in order_ids:
             message = event.original_update.message.split('_')
             if len(message) == 2:
                 action = message[0]
                 if action == 'get':
-                    await do_copy_group_and_channel_message_to_admin(-1001436263897, event.chat_id, "min_id", False, int(message[1]))
+                    await do_copy_group_and_channel_message_to_admin(resource_account, event.chat_id, redis_index_key_word, False, int(message[1]), response_data)
                 if action == 'put':
-                    await do_copy_group_and_channel_message_to_target(-1001436263897, -1002130678124, event.chat_id, message[1])
-                    # await do_copy_group_and_channel_message_to_target(-1001436263897, event.chat_id, event.chat_id, message[1])
+                    await do_copy_group_and_channel_message_to_target(resource_account, target_account, event.chat_id, message[1], response_data)
+                    # await do_copy_group_and_channel_message_to_target(resource_account, event.chat_id, event.chat_id, message[1])
                 if action == 'ga':  # getAll:ga_10 发送最新的10条消息
-                    await do_copy_group_and_channel_latest_message_to_admin(-1001436263897, event.chat_id, False, int(message[1]))
+                    await do_copy_group_and_channel_latest_message_to_admin(resource_account, event.chat_id, False, int(message[1]))
+            await client.send_message(event.chat_id, f"使用格式:\n"
+                                                     f"`get_`: 获取多少个\n"
+                                                     f"`ga_`: 获取最新的多少个\n"
+                                                     f"`put_`: 推送消息")
     except Exception as e:
         pass
 
