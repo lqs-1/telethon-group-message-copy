@@ -250,10 +250,12 @@ async def my_event_handler(event):
                     # await do_copy_group_and_channel_message_to_target(resource_account, event.chat_id, event.chat_id, message[1])
                 if action == 'ga':  # getAll:ga_10 发送最新的10条消息
                     await do_copy_group_and_channel_latest_message_to_admin(resource_account, event.chat_id, False, int(message[1]))
-            await client.send_message(event.chat_id, f"使用格式:\n"
-                                                     f"`get_`: 获取多少个\n"
-                                                     f"`ga_`: 获取最新的多少个\n"
-                                                     f"`put_`: 推送消息")
+            else:
+                await client.send_message(event.chat_id, f"使用格式:\n"
+                                                 f"`get_`: 获取多少个\n"
+                                                 f"`ga_`: 获取最新的多少个\n"
+                                                 f"`put_`: 推送消息")
+
     except Exception as e:
         pass
 
