@@ -69,8 +69,14 @@ async def  do_copy_group_and_channel_message_to_target(resource_account, target_
     # print(messages)
     # message = messages[0]
     print(messages.id, messages.message, "筛选通过 已发送到目的地")
-    messages.text = f"`{messages.text}`" + "\n\n" + "🎊" * 10 + f"\n[💰拉新赚佣金]({response_data.get('contact')})\n[🛒点我去商店]({response_data.get('account_shop_url')})"
+    messages.text = (f"`{messages.text}`" +
+                     "\n" +
+                     "🎊" * 10 +
+                     f"\n[💰点我赚佣金]({response_data.get('contact')})\n"
+                     f"[🛍️点我去商店]({response_data.get('account_shop_url')})\n"
+                     f"[📣撸管圣地]({response_data.get('other_channel')})")
     await client.send_message(f"@{target_account}", messages)
+    # await client.send_message(target_account, messages)
     await client.send_message(user_id, f"{messages.id}, {messages.text}" + "\n筛选通过 已发送到目的地")
     # await client.send_message(user_id, messages, parse_mode="md")
     # message_text = message.message
@@ -247,7 +253,7 @@ async def my_event_handler(event):
                     await do_copy_group_and_channel_message_to_admin(resource_account, event.chat_id, redis_index_key_word, False, int(message[1]), response_data)
                 if action == 'put':
                     await do_copy_group_and_channel_message_to_target(resource_account, target_account, event.chat_id, message[1], response_data)
-                    # await do_copy_group_and_channel_message_to_target(resource_account, event.chat_id, event.chat_id, message[1])
+                    # await do_copy_group_and_channel_message_to_target(resource_account, event.chat_id, event.chat_id, message[1], response_data)
                 if action == 'ga':  # getAll:ga_10 发送最新的10条消息
                     await do_copy_group_and_channel_latest_message_to_admin(resource_account, event.chat_id, False, int(message[1]))
             else:
