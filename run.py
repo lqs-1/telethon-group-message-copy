@@ -54,14 +54,79 @@ redis_client = redis.StrictRedis(host='localhost', port=6379, db=0)
 # 发送文件文档等
 # await client.send_file('me', r'C:\Users\grade\Downloads\google5.png')
 
-async def do_copy_group_and_channel_message_to_target(resource_account, target_account, user_id, message_id: str,
-                                                      response_data: list):
+async def do_copy_group_and_channel_message_to_target_by_count(resource_account, target_account, user_id, count: str,
+                                                      response_data: list, reverse: bool, redis_index_key_word: str):
+    """
+    复制指定条数的消息到目标位置
+    :param resource_account: 要复制的群或者频道id
+    :param target_account: 目标群或者频道id
+    :param user_id: 管理员id
+    :param count: 发送多少条
+    :param redis_index_key_word: redis中存放的消息起始id的key名字
+    :param reverse: 是否倒序 true为从0来时 false为从最新消息开始
+    :param response_data: 字典对象
+    :return:
+    """
+
+    try:
+        min_id = redis_client.get(f"{resource_account}_{redis_index_key_word}")
+        messages = client.iter_messages(f"@{resource_account}", reverse=reverse, max_id=int(min_id))
+    except Exception as e:
+        redis_client.set(f"{resource_account}_{redis_index_key_word}", await latest_message_id(resource_account))
+        messages = client.iter_messages(f"@{resource_account}", reverse=reverse,
+                                        max_id=await latest_message_id(resource_account))
+
+    flag = int(count)
+    # 打印历史消息
+    async for message in messages:
+        if flag == 0:
+            break
+        redis_client.set(f"{resource_account}_{redis_index_key_word}", message.id)
+
+
+        main_channel_str = response_data.get('main_channel')
+        main_channel_obj = main_channel_str.split(":")
+
+        if main_channel_obj[1] == target_account:
+
+            all_channel_str = response_data.get('other_channel')
+            all_channel_list = all_channel_str.split(",")
+
+            channel_message_str = str()
+
+            for channel in all_channel_list:
+                channel_obj = channel.split("_")
+                channel_message_str += f"\n[📣{channel_obj[0]}]({channel_obj[1]})"
+
+            message.text = (f"`{message.text}`\n" +
+                             "🎊" * 10 + "\n"
+                                        f"[💰点我赚佣金]({response_data.get('contact')})\n"
+                                        f"[🛍️点我去商店]({response_data.get('account_shop_url')})" + channel_message_str
+                             )
+        else:
+            message.text = (f"`{message.text}`\n" +
+                             "🎊" * 10 + "\n"
+                                        f"[💰点我赚佣金]({response_data.get('contact')})\n"
+                                        f"[🛍️点我去商店]({response_data.get('account_shop_url')})\n"
+                                        f"[📣{main_channel_obj[0]}](https://t.me/{main_channel_obj[1]})"
+                             )
+
+        flag -= 1
+        await client.send_message(f"@{target_account}", message)
+        # await client.send_message(target_account, messages)
+        await client.send_message(user_id, f"{message.id}, {message.text}" + "\n筛选通过 已发送到目的地")
+
+
+
+async def do_copy_group_and_channel_message_to_target(resource_account, target_account, user_id, message_id: str, response_data: list):
     """
     复制指定的消息到目标位置
-    :param resource_id: 要复制的群或者频道id
-    :param target_id: 目标群或者频道id
+    :param resource_account: 要复制的群或者频道id
+    :param target_account: 目标群或者频道id
     :param user_id: 管理员id
     :param message_id: 消息id
+    :param response_data: 字典对象
+
     :return:
     """
 
@@ -71,37 +136,45 @@ async def do_copy_group_and_channel_message_to_target(resource_account, target_a
     # print(messages)
     # message = messages[0]
     print(messages.id, messages.message, "筛选通过 已发送到目的地")
-    messages.text = (f"`{messages.text}`" +
-                     "\n" +
-                     "🎊" * 10 +
-                     f"\n[💰点我赚佣金]({response_data.get('contact')})\n"
-                     f"[🛍️点我去商店]({response_data.get('account_shop_url')})\n"
-                     f"[📣撸管圣地]({response_data.get('other_channel')})")
+
+    main_channel_str = response_data.get('main_channel')
+    main_channel_obj = main_channel_str.split(":")
+
+    if main_channel_obj[1] == target_account:
+
+        all_channel_str = response_data.get('other_channel')
+        all_channel_list = all_channel_str.split(",")
+
+        channel_message_str = str()
+
+        for channel in all_channel_list:
+            channel_obj = channel.split("_")
+            channel_message_str += f"\n[📣{channel_obj[0]}]({channel_obj[1]})"
+
+        messages.text = (f"`{messages.text}`\n" +
+                         "🎊" * 10 + "\n"
+                                    f"[💰点我赚佣金]({response_data.get('contact')})\n"
+                                    f"[🛍️点我去商店]({response_data.get('account_shop_url')})" + channel_message_str
+                         )
+    else:
+        messages.text = (f"`{messages.text}`\n" +
+                         "🎊" * 10 + "\n"
+                                    f"[💰点我赚佣金]({response_data.get('contact')})\n"
+                                    f"[🛍️点我去商店]({response_data.get('account_shop_url')})\n"
+                                    f"[📣{main_channel_obj[0]}](https://t.me/{main_channel_obj[1]})"
+                         )
+
     await client.send_message(f"@{target_account}", messages)
     # await client.send_message(target_account, messages)
     await client.send_message(user_id, f"{messages.id}, {messages.text}" + "\n筛选通过 已发送到目的地")
-    # await client.send_message(user_id, messages, parse_mode="md")
-    # message_text = message.message
-    # if "http" in message_text or "https" in message_text or "@" in message_text:
-    #     continue
-    #
-    # if message.message is not None:
-    #     flag += 1
-    #
-    #     await client.send_message(target_id, message)
 
-    # 可以下载媒体内容
-    # The method will return the path where the file was saved.
-    # if message.photo:
-    #     path = await message.download_media() # path是文件名
-    #     print('File saved to', path)  # printed after download is done
 
 
 async def do_copy_group_and_channel_message_to_admin(resource_account, target_id, redis_index_key_word: str,
-                                                     reverse: bool, count: int, response_data: list):
+                                                     reverse: bool, count: int):
     """
     把指定条数的消息发送给管理员 管理员好筛选
-    :param resource_id: 要复制的群或者频道id
+    :param resource_account: 要复制的群或者频道id
     :param target_id: 目标id 管理员id
     :param redis_index_key_word: redis中存放的消息起始id的key名字
     :param reverse: 是否倒序 true为从0来时 false为从最新消息开始
@@ -256,15 +329,18 @@ async def my_event_handler(event):
                 action = message[0]
                 if action == 'get':
                     await do_copy_group_and_channel_message_to_admin(resource_account, event.chat_id,
-                                                                     redis_index_key_word, False, int(message[1]),
-                                                                     response_data)
+                                                                     redis_index_key_word, False, int(message[1]))
+                if action == 'ga':  # getAll:ga_10 发送最新的10条消息
+                    await do_copy_group_and_channel_latest_message_to_admin(resource_account, event.chat_id, False,
+                                                                            int(message[1]))
                 if action == 'put':
                     await do_copy_group_and_channel_message_to_target(resource_account, target_account, event.chat_id,
                                                                       message[1], response_data)
                     # await do_copy_group_and_channel_message_to_target(resource_account, event.chat_id, event.chat_id, message[1], response_data)
-                if action == 'ga':  # getAll:ga_10 发送最新的10条消息
-                    await do_copy_group_and_channel_latest_message_to_admin(resource_account, event.chat_id, False,
-                                                                            int(message[1]))
+                if action == 'putn':
+                    await do_copy_group_and_channel_message_to_target_by_count(resource_account, target_account, event.chat_id,
+                                                                      message[1], response_data, False,
+                                                                      redis_index_key_word)
                 if action == 'link':
                     # https://t.me/fwewfw/12345
                     link = message[1]
@@ -277,6 +353,7 @@ async def my_event_handler(event):
                                                          f"`get_`: 获取多少个\n"
                                                          f"`ga_`: 获取最新的多少个\n"
                                                          f"`put_`: 推送消息\n"
+                                                         f"`putn_`: 推送消息指定个数\n"
                                                          f"`link_`: 根据分享链接推送")
 
     except Exception as e:
@@ -300,5 +377,3 @@ with client:
     # client.loop.run_until_complete(send_private_message("https://t.me/xylxf777", "https://t.me/av_share_channel 欢迎来这个频道看骚逼!每日更新"))
     # client.loop.run_until_complete(test())
     client.run_until_disconnected()
-
-
