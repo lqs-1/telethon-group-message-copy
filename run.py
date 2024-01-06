@@ -55,7 +55,8 @@ redis_client = redis.StrictRedis(host='localhost', port=6379, db=0)
 # await client.send_file('me', r'C:\Users\grade\Downloads\google5.png')
 
 async def do_copy_group_and_channel_message_to_target_by_count(resource_account, target_account, user_id, count: str,
-                                                      response_data: list, reverse: bool, redis_index_key_word: str):
+                                                               response_data: list, reverse: bool,
+                                                               redis_index_key_word: str):
     """
     复制指定条数的消息到目标位置
     :param resource_account: 要复制的群或者频道id
@@ -83,7 +84,6 @@ async def do_copy_group_and_channel_message_to_target_by_count(resource_account,
             break
         redis_client.set(f"{resource_account}_{redis_index_key_word}", message.id)
 
-
         main_channel_str = response_data.get('main_channel')
         main_channel_obj = main_channel_str.split(":")
 
@@ -99,17 +99,17 @@ async def do_copy_group_and_channel_message_to_target_by_count(resource_account,
                 channel_message_str += f"\n[📣{channel_obj[0]}]({channel_obj[1]})"
 
             message.text = (f"`{message.text}`\n" +
-                             "🎊" * 10 + "\n"
-                                        f"[💰点我赚佣金]({response_data.get('contact')})\n"
-                                        f"[🛍️点我去商店]({response_data.get('account_shop_url')})" + channel_message_str
-                             )
+                            "🎊" * 10 + "\n"
+                                       f"[💰点我赚佣金]({response_data.get('contact')})\n"
+                                       f"[🛍️点我去商店]({response_data.get('account_shop_url')})" + channel_message_str
+                            )
         else:
             message.text = (f"`{message.text}`\n" +
-                             "🎊" * 10 + "\n"
-                                        f"[💰点我赚佣金]({response_data.get('contact')})\n"
-                                        f"[🛍️点我去商店]({response_data.get('account_shop_url')})\n"
-                                        f"[📣{main_channel_obj[0]}](https://t.me/{main_channel_obj[1]})"
-                             )
+                            "🎊" * 10 + "\n"
+                                       f"[💰点我赚佣金]({response_data.get('contact')})\n"
+                                       f"[🛍️点我去商店]({response_data.get('account_shop_url')})\n"
+                                       f"[📣{main_channel_obj[0]}](https://t.me/{main_channel_obj[1]})"
+                            )
 
         flag -= 1
         await client.send_message(f"@{target_account}", message)
@@ -117,8 +117,8 @@ async def do_copy_group_and_channel_message_to_target_by_count(resource_account,
         await client.send_message(user_id, f"{message.id}, {message.text}" + "\n筛选通过 已发送到目的地")
 
 
-
-async def do_copy_group_and_channel_message_to_target(resource_account, target_account, user_id, message_id: str, response_data: list):
+async def do_copy_group_and_channel_message_to_target(resource_account, target_account, user_id, message_id: str,
+                                                      response_data: list):
     """
     复制指定的消息到目标位置
     :param resource_account: 要复制的群或者频道id
@@ -167,7 +167,6 @@ async def do_copy_group_and_channel_message_to_target(resource_account, target_a
     await client.send_message(f"@{target_account}", messages)
     # await client.send_message(target_account, messages)
     await client.send_message(user_id, f"{messages.id}, {messages.text}" + "\n筛选通过 已发送到目的地")
-
 
 
 async def do_copy_group_and_channel_message_to_admin(resource_account, target_id, redis_index_key_word: str,
@@ -338,23 +337,28 @@ async def my_event_handler(event):
                                                                       message[1], response_data)
                     # await do_copy_group_and_channel_message_to_target(resource_account, event.chat_id, event.chat_id, message[1], response_data)
                 if action == 'putn':
-                    await do_copy_group_and_channel_message_to_target_by_count(resource_account, target_account, event.chat_id,
-                                                                      message[1], response_data, False,
-                                                                      redis_index_key_word)
-                if action == 'link':
-                    # https://t.me/fwewfw/12345
-                    link = message[1]
-                    link_part = link.split("/")
-                    await do_copy_group_and_channel_message_to_target(link_part[3], target_account, event.chat_id,
-                                                                      link_part[4], response_data)
-                    # await do_copy_group_and_channel_message_to_target(resource_account, event.chat_id, event.chat_id, message[1], response_data)
+                    await do_copy_group_and_channel_message_to_target_by_count(resource_account, target_account,
+                                                                               event.chat_id,
+                                                                               message[1], response_data, False,
+                                                                               redis_index_key_word)
+                if action == 'msg' and message[1] == 'resource':
+                    dialogs = await client.get_dialogs()
+                    result_channel = str()
+                    count = 1
+                    for dialog in dialogs:
+                        if dialog.is_channel or dialog.is_group:
+                            result_channel += f"{count} = {dialog.title} : @{dialog.message.chat.username}\n\n"
+                            count += 1
+                    await client.send_message(event.chat_id, result_channel)
+
             else:
                 await client.send_message(event.chat_id, f"使用格式:\n"
                                                          f"`get_`: 获取多少个\n"
                                                          f"`ga_`: 获取最新的多少个\n"
                                                          f"`put_`: 推送消息\n"
                                                          f"`putn_`: 推送消息指定个数\n"
-                                                         f"`link_`: 根据分享链接推送")
+                                                         f"`msg_resource`: 获取所有的群组和频道")
+
 
     except Exception as e:
         pass
