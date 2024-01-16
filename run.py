@@ -54,6 +54,22 @@ redis_client = redis.StrictRedis(host='localhost', port=6379, db=0)
 # 发送文件文档等
 # await client.send_file('me', r'C:\Users\grade\Downloads\google5.png')
 
+async def do_copy_group_and_channel_message_news_to_target(resource_account: str, target_account: str):
+    """
+    同步更新新闻到频道或者群组
+    :param resource_account: 被复制的频道或群组
+    :param target_account:  目标频道或群组
+    :return:
+    """
+    messages = await client.get_messages(f"@{resource_account}", ids=int(await latest_message_id(resource_account)))
+
+    await client.send_message(f"@{target_account}", messages)
+
+
+
+
+
+
 async def do_copy_group_and_channel_message_to_target_by_count(resource_account, target_account, user_id, count: str,
                                                                response_data: list, reverse: bool,
                                                                redis_index_key_word: str):
@@ -84,13 +100,18 @@ async def do_copy_group_and_channel_message_to_target_by_count(resource_account,
             break
         redis_client.set(f"{resource_account}_{redis_index_key_word}", message.id)
 
+        message_text = message.message
+
+        if "http" in message_text or "https" in message_text or "@" in message_text:
+            continue
+
         main_channel_str = response_data.get('main_channel')
         main_channel_obj = main_channel_str.split(":")
 
-        if main_channel_obj[1] == target_account:
+        all_channel_str = response_data.get('other_channel')
+        all_channel_list = all_channel_str.split(",")
 
-            all_channel_str = response_data.get('other_channel')
-            all_channel_list = all_channel_str.split(",")
+        if main_channel_obj[1] == target_account:
 
             channel_message_str = str()
 
@@ -100,16 +121,22 @@ async def do_copy_group_and_channel_message_to_target_by_count(resource_account,
 
             message.text = (f"`{message.text}`\n" +
                             "🎊" * 10 + "\n"
-                                       f"[💰点我赚佣金]({response_data.get('contact')})\n"
+                                       # f"[💰点我赚佣金]({response_data.get('contact')})\n"
                                        f"[🛍️点我去商店]({response_data.get('account_shop_url')})" + channel_message_str
                             )
         else:
+            channel_message_str = str()
+            for channel in all_channel_list:
+                channel_obj = channel.split("_")
+                if not channel_obj[1] == f'https://t.me/{target_account}':
+                    channel_message_str += f"\n[📣{channel_obj[0]}]({channel_obj[1]})"
+
             message.text = (f"`{message.text}`\n" +
-                            "🎊" * 10 + "\n"
-                                       f"[💰点我赚佣金]({response_data.get('contact')})\n"
-                                       f"[🛍️点我去商店]({response_data.get('account_shop_url')})\n"
-                                       f"[📣{main_channel_obj[0]}](https://t.me/{main_channel_obj[1]})"
-                            )
+                             "-" * 30 + "\n"
+                                        # f"[💰点我赚佣金]({response_data.get('contact')})\n"
+                                        f"[🛍️点我去商店]({response_data.get('account_shop_url')})\n"
+                                        f"[📣{main_channel_obj[0]}](https://t.me/{main_channel_obj[1]})" + channel_message_str
+                             )
 
         flag -= 1
         await client.send_message(f"@{target_account}", message)
@@ -140,10 +167,11 @@ async def do_copy_group_and_channel_message_to_target(resource_account, target_a
     main_channel_str = response_data.get('main_channel')
     main_channel_obj = main_channel_str.split(":")
 
-    if main_channel_obj[1] == target_account:
+    all_channel_str = response_data.get('other_channel')
+    all_channel_list = all_channel_str.split(",")
 
-        all_channel_str = response_data.get('other_channel')
-        all_channel_list = all_channel_str.split(",")
+    # 发到主频道
+    if main_channel_obj[1] == target_account:
 
         channel_message_str = str()
 
@@ -152,16 +180,23 @@ async def do_copy_group_and_channel_message_to_target(resource_account, target_a
             channel_message_str += f"\n[📣{channel_obj[0]}]({channel_obj[1]})"
 
         messages.text = (f"`{messages.text}`\n" +
-                         "🎊" * 10 + "\n"
-                                    f"[💰点我赚佣金]({response_data.get('contact')})\n"
+                         "-" * 30 + "\n"
+                                    # f"[💰点我赚佣金]({response_data.get('contact')})\n"
                                     f"[🛍️点我去商店]({response_data.get('account_shop_url')})" + channel_message_str
                          )
     else:
+
+        channel_message_str = str()
+        for channel in all_channel_list:
+            channel_obj = channel.split("_")
+            if not channel_obj[1] == f'https://t.me/{target_account}':
+                channel_message_str += f"\n[📣{channel_obj[0]}]({channel_obj[1]})"
+
         messages.text = (f"`{messages.text}`\n" +
-                         "🎊" * 10 + "\n"
-                                    f"[💰点我赚佣金]({response_data.get('contact')})\n"
+                         "-" * 30 + "\n"
+                                    # f"[💰点我赚佣金]({response_data.get('contact')})\n"
                                     f"[🛍️点我去商店]({response_data.get('account_shop_url')})\n"
-                                    f"[📣{main_channel_obj[0]}](https://t.me/{main_channel_obj[1]})"
+                                    f"[📣{main_channel_obj[0]}](https://t.me/{main_channel_obj[1]})" + channel_message_str
                          )
 
     await client.send_message(f"@{target_account}", messages)
@@ -359,9 +394,13 @@ async def my_event_handler(event):
                                                          f"`putn_`: 推送消息指定个数\n"
                                                          f"`msg_resource`: 获取所有的群组和频道")
 
-
     except Exception as e:
-        pass
+        try:
+            if response_data.get('resource_account_news') == event.chat.username:
+                await do_copy_group_and_channel_message_news_to_target(response_data.get('resource_account_news'),
+                                                                   response_data.get('target_account_news'))
+        except Exception as e2:
+            pass
 
 
 async def test():
@@ -377,7 +416,7 @@ async def test():
 
 
 with client:
-    # client.loop.run_until_complete(copy_group_and_channel_message(-1001436263897, -1002130678124, "min_id", False))
+    # client.loop.run_until_complete(do_copy_group_and_channel_message_to_target_loop())
     # client.loop.run_until_complete(send_private_message("https://t.me/xylxf777", "https://t.me/av_share_channel 欢迎来这个频道看骚逼!每日更新"))
     # client.loop.run_until_complete(test())
     client.run_until_disconnected()
