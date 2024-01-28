@@ -1,3 +1,5 @@
+import json
+
 import requests
 import redis
 from telethon import TelegramClient, events
@@ -9,8 +11,8 @@ from app.config import api_id, api_hash
 client = TelegramClient('lee7s', api_id, api_hash)
 # 此处的some_name是一个随便起的名称，第一次运行会让你输入手机号和验证码，之后会生成一个some_name.session的文件，再次运行的时候就不需要反复输入手机号验证码了
 
-# redis_client = redis.StrictRedis(host='75.127.13.112', port=6379, db=0)
-redis_client = redis.StrictRedis(host='localhost', port=6379, db=0)
+redis_client = redis.StrictRedis(host='75.127.13.112', port=6379, db=0)
+# redis_client = redis.StrictRedis(host='localhost', port=6379, db=0)
 
 
 # async def main():
@@ -396,9 +398,19 @@ async def my_event_handler(event):
 
     except Exception as e:
         try:
-            if response_data.get('resource_account_news') == event.chat.username:
-                await do_copy_group_and_channel_message_news_to_target(response_data.get('resource_account_news'),
-                                                                   response_data.get('target_account_news'))
+            auto_update_chat = dict()
+            auto_update_chat_keys = list()
+            auto_update_chat_str = response_data.get('auto_update_chat')
+            auto_update_chat_str_list = auto_update_chat_str.split(",")
+
+            for auto_update_chat_str_one in auto_update_chat_str_list:
+                auto_update_chat_resource_target = auto_update_chat_str_one.split(":")
+                auto_update_chat_keys.append(auto_update_chat_resource_target[0])
+                auto_update_chat.update({auto_update_chat_resource_target[0]: auto_update_chat_resource_target[1]})
+
+            if event.chat.username in auto_update_chat_keys:
+                await do_copy_group_and_channel_message_news_to_target(event.chat.username,
+                                                                   auto_update_chat.get(event.chat.username))
         except Exception as e2:
             pass
 
