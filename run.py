@@ -7,12 +7,12 @@ import time
 
 from app.config import api_id, api_hash
 
-# client = TelegramClient('lee7s', api_id, api_hash, proxy=("socks5", '127.0.0.1', 7890))
-client = TelegramClient('lee7s', api_id, api_hash)
+client = TelegramClient('lee7s', api_id, api_hash, proxy=("socks5", '127.0.0.1', 7890))
+# client = TelegramClient('lee7s', api_id, api_hash)
 # 此处的some_name是一个随便起的名称，第一次运行会让你输入手机号和验证码，之后会生成一个some_name.session的文件，再次运行的时候就不需要反复输入手机号验证码了
 
-redis_client = redis.StrictRedis(host='75.127.13.112', port=6379, db=0)
-# redis_client = redis.StrictRedis(host='localhost', port=6379, db=0)
+# redis_client = redis.StrictRedis(host='75.127.13.112', port=6379, db=0)
+redis_client = redis.StrictRedis(host='localhost', port=6379, db=0)
 
 
 # async def main():
@@ -294,6 +294,52 @@ async def do_copy_group_and_channel_latest_message_to_admin(resource_account, ta
         #     print('File saved to', path)  # printed after download is done
 
 
+async def do_copy_group_and_channel_all_message_to_target_by_count(resource_account, target_account, count: str,
+                                                               response_data: list, reverse: bool,
+                                                               redis_index_key_word: str):
+    """
+      复制指定条数的消息到目标位置
+      :param resource_account: 要复制的群或者频道id
+      :param target_account 目标群或者频道id
+      :param count: 发送多少条
+      :param redis_index_key_word: redis中存放的消息起始id的key名字
+      :param reverse: 是否倒序 true为从0来时 false为从最新消息开始
+      :param response_data: 字典对象
+      :return:
+      """
+
+    try:
+        min_id = redis_client.get(f"{resource_account}_{redis_index_key_word}")
+        messages = client.iter_messages(f"@{resource_account}", reverse=reverse, max_id=int(min_id))
+    except Exception as e:
+        redis_client.set(f"{resource_account}_{redis_index_key_word}", await latest_message_id(resource_account))
+        messages = client.iter_messages(f"@{resource_account}", reverse=reverse,
+                                        max_id=await latest_message_id(resource_account))
+
+    flag = int(count)
+    # 打印历史消息
+    async for message in messages:
+        if flag == 0:
+            break
+
+        redis_client.set(f"{resource_account}_{redis_index_key_word}", message.id)
+
+        message_text = message.message
+
+        if ("http" in message_text or "https" in message_text or "@" in message_text or len(message.text) == 0):
+            continue
+
+        message.text = (f"`{message.text}`\n" +
+                        "-" * 30 + "\n"
+                                   f"[📣导航频道]({response_data.get('daohang_channel')})\n"
+                                   f"[🛍️点我去商店]({response_data.get('account_shop_url')})"
+
+                        )
+        print(message.text)
+
+        flag -= 1
+        await client.send_message(target_account, message)
+
 async def send_private_message(group_link: str, message_text: str):
     """
     指定公开群聊 给里面的人发私信 需要账号进入
@@ -378,6 +424,12 @@ async def my_event_handler(event):
                                                                                event.chat_id,
                                                                                message[1], response_data, False,
                                                                                redis_index_key_word)
+                if action == 'putna':
+                    update_all_channels = response_data.get('update_channels_all_name').split(":")
+                    for update_channel in update_all_channels:
+                        await do_copy_group_and_channel_all_message_to_target_by_count(resource_account, update_channel,
+                                                                                   message[1], response_data, False,
+                                                                                   redis_index_key_word)
                 if action == 'msg' and message[1] == 'resource':
                     dialogs = await client.get_dialogs()
                     result_channel = str()
@@ -394,6 +446,7 @@ async def my_event_handler(event):
                                                          f"`ga_`: 获取最新的多少个\n"
                                                          f"`put_`: 推送消息\n"
                                                          f"`putn_`: 推送消息指定个数\n"
+                                                         f"`putna_`: 推送消息指定个数到所有频道\n"
                                                          f"`msg_resource`: 获取所有的群组和频道")
 
     except Exception as e:
