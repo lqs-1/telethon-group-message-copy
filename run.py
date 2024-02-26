@@ -519,7 +519,7 @@ async def my_event_handler(event):
                     result_channel = str()
                     count = 1
                     for dialog in dialogs:
-                        if dialog.is_channel or dialog.is_group:
+                        if dialog.is_channel:
                             result_channel += f"{count} = {dialog.title} : @{dialog.message.chat.username}\n\n"
                             count += 1
                     await client.send_message(event.chat_id, result_channel)
