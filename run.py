@@ -7,8 +7,8 @@ import time
 
 from app.config import api_id, api_hash
 
-client = TelegramClient('lee7s', api_id, api_hash, proxy=("socks5", '127.0.0.1', 7890))
-# client = TelegramClient('lee7s', api_id, api_hash)
+# client = TelegramClient('lee7s', api_id, api_hash, proxy=("socks5", '127.0.0.1', 7890))
+client = TelegramClient('lee7s', api_id, api_hash)
 # 此处的some_name是一个随便起的名称，第一次运行会让你输入手机号和验证码，之后会生成一个some_name.session的文件，再次运行的时候就不需要反复输入手机号验证码了
 
 # redis_client = redis.StrictRedis(host='75.127.13.112', port=6379, db=0)
@@ -68,10 +68,6 @@ async def do_copy_group_and_channel_message_news_to_target(resource_account: str
     await client.send_message(f"@{target_account}", messages)
 
 
-
-
-
-
 async def do_copy_group_and_channel_message_to_target_by_count(resource_account, target_account, user_id, count: str,
                                                                response_data: list, reverse: bool,
                                                                redis_index_key_word: str):
@@ -123,7 +119,7 @@ async def do_copy_group_and_channel_message_to_target_by_count(resource_account,
 
             message.text = (f"`{message.text}`\n" +
                             "🎊" * 10 + "\n"
-                                       # f"[💰点我赚佣金]({response_data.get('contact')})\n"
+                            # f"[💰点我赚佣金]({response_data.get('contact')})\n"
                                        f"[🛍️点我去商店]({response_data.get('account_shop_url')})" + channel_message_str
                             )
         else:
@@ -134,11 +130,11 @@ async def do_copy_group_and_channel_message_to_target_by_count(resource_account,
                     channel_message_str += f"\n[📣{channel_obj[0]}]({channel_obj[1]})"
 
             message.text = (f"`{message.text}`\n" +
-                             "-" * 30 + "\n"
-                                        # f"[💰点我赚佣金]({response_data.get('contact')})\n"
-                                        f"[🛍️点我去商店]({response_data.get('account_shop_url')})\n"
-                                        f"[📣{main_channel_obj[0]}](https://t.me/{main_channel_obj[1]})" + channel_message_str
-                             )
+                            "-" * 30 + "\n"
+                            # f"[💰点我赚佣金]({response_data.get('contact')})\n"
+                                       f"[🛍️点我去商店]({response_data.get('account_shop_url')})\n"
+                                       f"[📣{main_channel_obj[0]}](https://t.me/{main_channel_obj[1]})" + channel_message_str
+                            )
 
         flag -= 1
         await client.send_message(f"@{target_account}", message)
@@ -183,7 +179,7 @@ async def do_copy_group_and_channel_message_to_target(resource_account, target_a
 
         messages.text = (f"`{messages.text}`\n" +
                          "-" * 30 + "\n"
-                                    # f"[💰点我赚佣金]({response_data.get('contact')})\n"
+                         # f"[💰点我赚佣金]({response_data.get('contact')})\n"
                                     f"[🛍️点我去商店]({response_data.get('account_shop_url')})" + channel_message_str
                          )
     else:
@@ -196,7 +192,7 @@ async def do_copy_group_and_channel_message_to_target(resource_account, target_a
 
         messages.text = (f"`{messages.text}`\n" +
                          "-" * 30 + "\n"
-                                    # f"[💰点我赚佣金]({response_data.get('contact')})\n"
+                         # f"[💰点我赚佣金]({response_data.get('contact')})\n"
                                     f"[🛍️点我去商店]({response_data.get('account_shop_url')})\n"
                                     f"[📣{main_channel_obj[0]}](https://t.me/{main_channel_obj[1]})" + channel_message_str
                          )
@@ -295,10 +291,10 @@ async def do_copy_group_and_channel_latest_message_to_admin(resource_account, ta
 
 
 async def do_copy_group_and_channel_all_message_to_target_by_count(resource_account, target_account, count: str,
-                                                               response_data: list, reverse: bool,
-                                                               redis_index_key_word: str):
+                                                                   response_data: list, reverse: bool,
+                                                                   redis_index_key_word: str):
     """
-      复制指定条数的消息到目标位置
+      复制指定条数的消息到目标位置 批量频道
       :param resource_account: 要复制的群或者频道id
       :param target_account 目标群或者频道id
       :param count: 发送多少条
@@ -339,6 +335,54 @@ async def do_copy_group_and_channel_all_message_to_target_by_count(resource_acco
 
         flag -= 1
         await client.send_message(target_account, message)
+
+
+async def do_copy_group_and_channel_one_message_to_target_by_count(resource_account, target_account, count: str,
+                                                             response_data: list, reverse: bool,
+                                                             redis_index_key_word: str):
+    """
+   复制指定条数的消息到目标位置 纯净版本
+   :param resource_account: 要复制的群或者频道id
+   :param target_account 目标群或者频道id
+   :param count: 发送多少条
+   :param redis_index_key_word: redis中存放的消息起始id的key名字
+   :param reverse: 是否倒序 true为从0来时 false为从最新消息开始
+   :param response_data: 字典对象
+   :return:
+   """
+
+    try:
+        min_id = redis_client.get(f"{resource_account}_{redis_index_key_word}")
+        messages = client.iter_messages(f"@{resource_account}", reverse=reverse, max_id=int(min_id))
+    except Exception as e:
+        redis_client.set(f"{resource_account}_{redis_index_key_word}", await latest_message_id(resource_account))
+        messages = client.iter_messages(f"@{resource_account}", reverse=reverse,
+                                        max_id=await latest_message_id(resource_account))
+
+    flag = int(count)
+    # 打印历史消息
+    async for message in messages:
+        if flag == 0:
+            break
+
+        redis_client.set(f"{resource_account}_{redis_index_key_word}", message.id)
+
+        message_text = message.message
+
+        if ("http" in message_text or "https" in message_text or "@" in message_text or len(message.text) == 0):
+            continue
+
+        main_channel = response_data.get('main_channel').split(":")
+
+        message.text = (f"`{message.text}`\n" +
+                        "-" * 30 + "\n"
+                                   f"[📣{main_channel[0]}](https://t.me/{main_channel[1]})"
+                        )
+        print(message.text)
+
+        flag -= 1
+        await client.send_message(f"@{target_account}", message)
+
 
 async def send_private_message(group_link: str, message_text: str):
     """
@@ -428,8 +472,14 @@ async def my_event_handler(event):
                     update_all_channels = response_data.get('update_channels_all_name').split(":")
                     for update_channel in update_all_channels:
                         await do_copy_group_and_channel_all_message_to_target_by_count(resource_account, update_channel,
-                                                                                   message[1], response_data, False,
+                                                                                       message[1], response_data, False,
+                                                                                       redis_index_key_word)
+                if action == 'putnaone':
+                    msg = message[1].split(":")
+                    await do_copy_group_and_channel_one_message_to_target_by_count(resource_account, msg[0],
+                                                                                   msg[1], response_data, False,
                                                                                    redis_index_key_word)
+
                 if action == 'msg' and message[1] == 'resource':
                     dialogs = await client.get_dialogs()
                     result_channel = str()
@@ -447,6 +497,7 @@ async def my_event_handler(event):
                                                          f"`put_`: 推送消息\n"
                                                          f"`putn_`: 推送消息指定个数\n"
                                                          f"`putna_`: 推送消息指定个数到所有频道\n"
+                                                         f"`putnaone_`: 推送纯净消息指定个数到频道\n"
                                                          f"`msg_resource`: 获取所有的群组和频道")
 
     except Exception as e:
@@ -463,7 +514,7 @@ async def my_event_handler(event):
 
             if event.chat.username in auto_update_chat_keys:
                 await do_copy_group_and_channel_message_news_to_target(event.chat.username,
-                                                                   auto_update_chat.get(event.chat.username))
+                                                                       auto_update_chat.get(event.chat.username))
         except Exception as e2:
             pass
 
