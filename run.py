@@ -383,6 +383,18 @@ async def do_copy_group_and_channel_one_message_to_target_by_count(resource_acco
         flag -= 1
         await client.send_message(f"@{target_account}", message)
 
+async def do_copy_group_and_channel_all_ad_to_target(ad_channel_link, target_account):
+    """
+    复制广告到指定频道
+    :param ad_channel_link: 广告全链接
+    :param target_account: 被复制到的目标频道
+    :return:
+    """
+    ad_account, ad_id = await construct_ad_channel_and_ad_id(ad_channel_link)
+    ad_message = await client.get_messages(ad_account, ids=ad_id)
+    await client.send_message(target_account, ad_message)
+
+
 
 async def send_private_message(group_link: str, message_text: str):
     """
@@ -428,6 +440,19 @@ async def latest_message_id(session_account):
     async for message in messages:
         return message.id
 
+
+async def construct_ad_channel_and_ad_id(ad_channel_link):
+    """
+    构建广告的频道和消息id
+    :param ad_channel_link: 广告的全链接
+    :return:
+    """
+
+    ad_channel_link_list = ad_channel_link.split("/")
+    ad_account = f"@{ad_channel_link_list[3]}"
+    ad_id = int(ad_channel_link_list[4])
+
+    return ad_account, ad_id
 
 @client.on(events.NewMessage)
 async def my_event_handler(event):
@@ -480,6 +505,15 @@ async def my_event_handler(event):
                                                                                    msg[1], response_data, False,
                                                                                    redis_index_key_word)
 
+                if action == 'send' and message[1] == 'ad':
+                    ad_channel_link = response_data.get('ad_channel_link')
+                    update_all_channels = response_data.get('need_ad_channel_accounts').split(":")
+                    for update_channel in update_all_channels:
+
+                        await do_copy_group_and_channel_all_ad_to_target(ad_channel_link, update_channel)
+
+
+
                 if action == 'msg' and message[1] == 'resource':
                     dialogs = await client.get_dialogs()
                     result_channel = str()
@@ -496,8 +530,9 @@ async def my_event_handler(event):
                                                          f"`ga_`: 获取最新的多少个\n"
                                                          f"`put_`: 推送消息\n"
                                                          f"`putn_`: 推送消息指定个数\n"
-                                                         f"`putna_`: 推送消息指定个数到所有频道\n"
-                                                         f"`putnaone_`: 推送纯净消息指定个数到频道\n"
+                                                         f"`putna_`: 推送消息指定个数到配置频道\n"
+                                                         f"`putnaone_`: 推送纯净消息到指定频道 频道名:个数\n"
+                                                         f"`send_ad`: 推送广告\n"
                                                          f"`msg_resource`: 获取所有的群组和频道")
 
     except Exception as e:
