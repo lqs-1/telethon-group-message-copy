@@ -372,11 +372,14 @@ async def do_copy_group_and_channel_one_message_to_target_by_count(resource_acco
         if ("http" in message_text or "https" in message_text or "@" in message_text or len(message.text) == 0):
             continue
 
-        main_channel = response_data.get('main_channel').split(":")
+        if resource_account == "shuiguopai":
+            message.text = (f"#18禁 #成人 #解说  #反差 #内射 #日本AV\n\n`{message.text}`")
+        else:
+            main_channel = response_data.get('main_channel').split(":")
 
-        message.text = (f"`{message.text}`\n" +
-                        "-" * 30 + "\n"
-                                   f"[📣{main_channel[0]}](https://t.me/{main_channel[1]})"
+            message.text = (f"#18禁 #成人 #AV #反差 #内射\n\n`{message.text}`\n" +
+                            "-" * 30 + "\n"
+                                       f"[📣{main_channel[0]}](https://t.me/{main_channel[1]})"
                         )
         print(message.text)
 
