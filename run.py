@@ -160,7 +160,7 @@ async def do_copy_group_and_channel_message_to_target(resource_account, target_a
 
     # print(messages)
     # message = messages[0]
-    print(messages.id, messages.message, "筛选通过 已发送到目的地")
+    # print(messages.id, messages.message, "筛选通过 已发送到目的地")
 
     main_channel_str = response_data.get('main_channel')
     main_channel_obj = main_channel_str.split(":")
@@ -240,7 +240,7 @@ async def do_copy_group_and_channel_message_to_admin(resource_account, target_id
 
         # if message.message is not None:
         flag -= 1
-        print(message.id, message.message, "已发送给管理员筛选")
+        # print(message.id, message.message, "已发送给管理员筛选")
         await client.send_message(target_id, message, parse_mode='md')
 
         # 可以下载媒体内容
@@ -280,7 +280,7 @@ async def do_copy_group_and_channel_latest_message_to_admin(resource_account, ta
 
         # if message.message is not None:
         flag -= 1
-        print(message.id, message.message, "已发送给管理员筛选")
+        # print(message.id, message.message, "已发送给管理员筛选")
         await client.send_message(target_id, message, parse_mode='md')
 
         # 可以下载媒体内容
@@ -331,7 +331,7 @@ async def do_copy_group_and_channel_all_message_to_target_by_count(resource_acco
                                    f"[🛍️点我去商店]({response_data.get('account_shop_url')})"
 
                         )
-        print(message.text)
+        # print(message.text)
 
         flag -= 1
         await client.send_message(target_account, message)
@@ -381,7 +381,7 @@ async def do_copy_group_and_channel_one_message_to_target_by_count(resource_acco
                             "-" * 30 + "\n"
                                        f"[📣{main_channel[0]}](https://t.me/{main_channel[1]})"
                         )
-        print(message.text)
+        # print(message.text)
 
         flag -= 1
         await client.send_message(f"@{target_account}", message)
